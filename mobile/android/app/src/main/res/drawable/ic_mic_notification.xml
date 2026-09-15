@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same glyph as ic_mic.xml, without the tint override: Android draws a
+     notification's small icon using only its alpha channel, filled with
+     whatever color the system/notification theme picks, so the fillColor
+     here does not matter but must be opaque. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,15 C13.66,15 15,13.66 15,12 L15,6 C15,4.34 13.66,3 12,3 C10.34,3 9,4.34 9,6 L9,12 C9,13.66 10.34,15 12,15 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M17,12 C17,14.76 14.76,17 12,17 C9.24,17 7,14.76 7,12 L5,12 C5,15.53 7.61,18.43 11,18.92 L11,22 L13,22 L13,18.92 C16.39,18.43 19,15.53 19,12 L17,12 Z" />
+</vector>

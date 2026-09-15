@@ -1,0 +1,42 @@
+services:
+  plane-mcp:
+    build:
+      context: .
+      args:
+        PLANE_MCP_VERSION: ${PLANE_MCP_VERSION:-v0.3.2}
+    image: plane-assistant/plane-mcp:${PLANE_MCP_VERSION:-v0.3.2}
+    restart: unless-stopped
+    environment:
+      # Talks directly to Plane's internal `api` service -- see README.md
+      # "How authentication actually works" for why no API key/workspace
+      # slug is configured here (they travel per-request as HTTP headers,
+      # injected by the gateway for each CLI invocation).
+      PLANE_INTERNAL_BASE_URL: ${PLANE_INTERNAL_BASE_URL:-http://api:8000}
+      PLANE_BASE_URL: ${PLANE_BASE_URL:-}
+      MCP_PATH_PREFIX: ${MCP_PATH_PREFIX:-}
+      LOG_USER_INFO: ${LOG_USER_INFO:-false}
+      LOG_PAYLOADS: ${LOG_PAYLOADS:-false}
+      # Required for the process to start at all (the OAuth transport is
+      # constructed unconditionally, see README.md "How authentication
+      # actually works"), but never exercised: this stack only ever calls
+      # the /http/api-key/mcp header-auth route. Safe, non-secret
+      # placeholders -- do not put real OAuth credentials here.
+      PLANE_OAUTH_PROVIDER_CLIENT_ID: ${PLANE_OAUTH_PROVIDER_CLIENT_ID:-unused}
+      PLANE_OAUTH_PROVIDER_CLIENT_SECRET: ${PLANE_OAUTH_PROVIDER_CLIENT_SECRET:-unused}
+      PLANE_OAUTH_PROVIDER_BASE_URL: ${PLANE_OAUTH_PROVIDER_BASE_URL:-http://localhost:8211}
+    networks:
+      - plane-assistant
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import http.client; c = http.client.HTTPConnection('localhost', 8211, timeout=3); c.request('GET', '/http/api-key/mcp'); c.getresponse()"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+networks:
+  plane-assistant:
+    name: plane-assistant

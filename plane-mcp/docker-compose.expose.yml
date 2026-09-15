@@ -1,0 +1,11 @@
+# Optional override that publishes the MCP port to the host, for debugging
+# or for pointing a local CLI/MCP inspector at the container directly.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.expose.yml up -d
+#
+# The root Makefile applies this automatically when PLANE_MCP_EXPOSE_PORT=true.
+services:
+  plane-mcp:
+    ports:
+      - "${PLANE_MCP_HOST_PORT:-8100}:8211"

@@ -1,0 +1,79 @@
+services:
+  gateway:
+    build:
+      context: .
+      args:
+        COPILOT_CLI_VERSION: ${COPILOT_CLI_VERSION:-1.0.83}
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-2.1.270}
+    image: plane-assistant/gateway:latest
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PORT:-8088}:8088"
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+
+      GATEWAY_HOST: ${GATEWAY_HOST:-0.0.0.0}
+      GATEWAY_PORT: ${GATEWAY_PORT:-8088}
+      GATEWAY_API_TOKEN: ${GATEWAY_API_TOKEN:-change-me}
+
+      AGENT_CLI: ${AGENT_CLI:-copilot}
+      AGENT_TIMEOUT_SECONDS: ${AGENT_TIMEOUT_SECONDS:-180}
+      AGENT_MAX_CONCURRENT_REQUESTS: ${AGENT_MAX_CONCURRENT_REQUESTS:-2}
+
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/anthropic}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-v4-pro}
+
+      PLANE_PUBLIC_URL: ${PLANE_PUBLIC_URL:-http://localhost:8080}
+      PLANE_WORKSPACE_SLUG: ${PLANE_WORKSPACE_SLUG:-}
+      PLANE_API_KEY: ${PLANE_API_KEY:-}
+      PLANE_USER_EMAIL: ${PLANE_USER_EMAIL:-}
+      PLANE_USER_ID: ${PLANE_USER_ID:-}
+      PLANE_INTERNAL_BASE_URL: ${PLANE_INTERNAL_BASE_URL:-http://api:8000}
+      PLANE_MCP_URL: ${PLANE_MCP_URL:-http://plane-mcp:8211/http/api-key/mcp}
+
+      CONVERSATION_CONTEXT_MESSAGES: ${CONVERSATION_CONTEXT_MESSAGES:-10}
+      # NOT DATABASE_URL -- that name collides with Plane's own Postgres
+      # connection string when both components share one root .env (see
+      # app/config.py for the full story; this crashed Plane's api/migrator
+      # containers on a real full-stack run).
+      GATEWAY_DATABASE_URL: ${GATEWAY_DATABASE_URL:-sqlite+aiosqlite:////data/gateway.db}
+
+      MAX_AUDIO_SIZE_MB: ${MAX_AUDIO_SIZE_MB:-25}
+      MAX_AUDIO_DURATION_SECONDS: ${MAX_AUDIO_DURATION_SECONDS:-300}
+
+      STT_URL: ${STT_URL:-http://speech-stt:9000}
+      STT_ENGINE: ${STT_ENGINE:-faster_whisper}
+      STT_MODEL: ${STT_MODEL:-small}
+      STT_LANGUAGE: ${STT_LANGUAGE:-}
+
+      TTS_URL: ${TTS_URL:-http://speech-tts:8880}
+      TTS_MODEL: ${TTS_MODEL:-kokoro}
+      TTS_VOICE: ${TTS_VOICE:-af_heart}
+      TTS_FORMAT: ${TTS_FORMAT:-mp3}
+      TTS_SPEED: ${TTS_SPEED:-1.0}
+      TTS_CACHE_TTL_SECONDS: ${TTS_CACHE_TTL_SECONDS:-3600}
+      TTS_CACHE_MAX_MB: ${TTS_CACHE_MAX_MB:-500}
+      TTS_CACHE_DIR: /data/tts-cache
+
+      PROMPT_PATH: /app/prompts/plane-assistant.md
+
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_REQUEST_CONTENT: ${LOG_REQUEST_CONTENT:-false}
+    volumes:
+      # Gateway SQLite DB + TTS cache -- the two gateway-owned things worth
+      # persisting across restarts (see root README's Backup section).
+      - gateway_data:/data
+      # Editable without rebuilding the image, per the root README's prompt
+      # architecture rule.
+      - ../prompts:/app/prompts:ro
+    networks:
+      - plane-assistant
+
+networks:
+  plane-assistant:
+    name: plane-assistant
+
+volumes:
+  gateway_data:

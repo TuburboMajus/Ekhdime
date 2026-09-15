@@ -1,0 +1,12 @@
+# GPU override for the speech services. Requires the NVIDIA Container
+# Toolkit on the Docker host. Usage:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# (equivalent to `make up GPU=1`). The core Plane/MCP/gateway behavior never
+# depends on a GPU being present -- see each speech component's own
+# docker-compose.gpu.yml and README for what was/wasn't runtime-verified
+# (no GPU was available while building this stack).
+include:
+  - speech-stt/docker-compose.gpu.yml
+  - speech-tts/docker-compose.gpu.yml

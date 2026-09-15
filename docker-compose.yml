@@ -1,0 +1,41 @@
+# Combines every isolated component in this repository into one stack via
+# Compose's `include:` (confirmed to correctly merge shared networks and let
+# a top-level service re-declaration add `depends_on` onto a service fully
+# defined in an included file -- see the individual component compose files
+# for how each one is independently runnable on its own).
+#
+# Usage: see the Makefile (`make plane-up`, `make up`) rather than invoking
+# `docker compose` directly -- Plane must be bootstrapped (a workspace + API
+# key created through its UI) before the rest of the stack has anything
+# useful to talk to. Running this file directly works too:
+#
+#   docker compose up -d plane-db plane-redis plane-mq plane-minio api worker beat-worker migrator web admin space live proxy
+#   # ... complete Plane's Phase 1 bootstrap, fill in .env ...
+#   docker compose up -d
+#
+# but `make` gets the ordering right for you.
+include:
+  - plane/docker-compose.yml
+  - plane-mcp/docker-compose.yml
+  - gateway/docker-compose.yml
+  - speech-stt/docker-compose.yml
+  - speech-tts/docker-compose.yml
+
+services:
+  # plane-mcp needs Plane's API actually accepting connections, not just
+  # "container started" -- see root README section 51.
+  plane-mcp:
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # The gateway is the one thing the mobile app / scripts/ask-plane.sh talk
+  # to, so it waits for everything it calls to be healthy first.
+  gateway:
+    depends_on:
+      plane-mcp:
+        condition: service_healthy
+      speech-stt:
+        condition: service_healthy
+      speech-tts:
+        condition: service_healthy

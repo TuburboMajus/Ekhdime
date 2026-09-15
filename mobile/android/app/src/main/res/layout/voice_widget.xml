@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The whole widget is one tappable circular button: like the Shazam/
+     Google-search home-screen widgets this mirrors, there is nothing else
+     on it. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="4dp">
+
+    <ImageView
+        android:id="@+id/voice_widget_button"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_circle_button"
+        android:contentDescription="@string/voice_widget_description"
+        android:padding="16dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_mic" />
+
+</FrameLayout>

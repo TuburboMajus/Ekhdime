@@ -1,0 +1,30 @@
+# Optional override that switches speech-tts to the GPU-accelerated image and
+# reserves an NVIDIA GPU for the container. Requires the NVIDIA Container
+# Toolkit to be installed on the Docker host.
+#
+# The `ghcr.io/remsky/kokoro-fastapi-gpu:v0.9.0` tag was confirmed to exist
+# via `docker manifest inspect ghcr.io/remsky/kokoro-fastapi-gpu:v0.9.0`
+# (both amd64 and arm64 manifests present), matching the CPU tag pinned in
+# docker-compose.yml. This override was NOT runtime-tested end to end (no
+# GPU available in this sandbox) -- the CPU image's build/healthcheck/API
+# behavior it otherwise inherits has been verified live.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+services:
+  speech-tts:
+    build:
+      args:
+        BASE_IMAGE: ghcr.io/remsky/kokoro-fastapi-gpu
+        KOKORO_FASTAPI_VERSION: ${KOKORO_FASTAPI_VERSION_GPU:-v0.9.0}
+    image: plane-assistant/speech-tts:${KOKORO_FASTAPI_VERSION_GPU:-v0.9.0}-gpu
+    environment:
+      USE_GPU: "true"
+      DEVICE: cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

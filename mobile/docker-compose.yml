@@ -1,0 +1,17 @@
+# One-shot APK build job -- this is NOT a long-running service. Run it with:
+#
+#   docker compose run --rm mobile-build
+#
+# (not `docker compose up -d`, which wouldn't make sense here: the container
+# builds an APK and exits). The resulting app-release.apk lands in
+# ./build-output on the host.
+services:
+  mobile-build:
+    build:
+      context: .
+      args:
+        FLUTTER_VERSION: ${FLUTTER_VERSION:-3.32.7}
+        DEFAULT_SERVER_URL: ${DEFAULT_SERVER_URL:-}
+    image: plane-assistant/mobile-build:${FLUTTER_VERSION:-3.32.7}
+    volumes:
+      - ./build-output:/output

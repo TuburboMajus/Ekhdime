@@ -1,0 +1,41 @@
+# Kokoro-FastAPI -- text-to-speech component.
+#
+# Runs standalone with `docker compose up -d` from this directory (creates a
+# project-scoped `plane-assistant` network), or gets combined into the
+# repo's root compose via an `include:` directive alongside sibling
+# components (e.g. ../plane-mcp/docker-compose.yml), in which case they all
+# share the *same* actual `plane-assistant` network because the name below
+# is fixed (not project-prefixed).
+#
+# No ports are published to the host by default -- per this repo's rule,
+# only Plane's UI and the gateway API should be host-reachable. The gateway
+# reaches this service at http://speech-tts:8880 over the internal Docker
+# network (see README.md for the verified API paths).
+#
+# No volumes: unlike Whisper, Kokoro's model weights and voice packs are
+# baked into the image itself (verified: startup logs load them straight
+# from /app/api/src/models and /app/api/src/voices with no download step),
+# so there is nothing to persist across restarts.
+services:
+  speech-tts:
+    build:
+      context: .
+      args:
+        KOKORO_FASTAPI_VERSION: ${KOKORO_FASTAPI_VERSION:-v0.9.0}
+    image: plane-assistant/speech-tts:${KOKORO_FASTAPI_VERSION:-v0.9.0}
+    restart: unless-stopped
+    networks:
+      - plane-assistant
+    healthcheck:
+      # curl confirmed present inside the image. /health returns
+      # {"status":"healthy"} once the model has finished warming up
+      # (~18s on CPU in this sandbox) -- start_period covers that.
+      test: ["CMD", "curl", "-f", "http://localhost:8880/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+networks:
+  plane-assistant:
+    name: plane-assistant
