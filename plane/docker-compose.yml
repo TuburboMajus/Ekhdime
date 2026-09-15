@@ -1,0 +1,337 @@
+# Plane Community Edition -- self-hosted stack.
+#
+# This file is the official release compose file published by the Plane team
+# at https://github.com/makeplane/plane/releases/download/<APP_RELEASE>/docker-compose.yml,
+# with the minimal changes required to (a) run it as an isolated component of
+# this repository and (b) let the other components reach it over a shared
+# Docker network. Everything else (services, images, env var names, volumes)
+# is untouched on purpose -- see ../plane/README.md "Deviations from upstream"
+# for the full, itemized list of what changed and why.
+#
+# Standalone usage (this directory only):
+#   cd plane && cp .env.example .env && docker compose up -d
+#
+# As part of the full stack, the root docker-compose.yml includes this file
+# and merges the `plane-assistant` network across every component.
+
+x-db-env: &db-env
+  PGHOST: ${PGHOST:-plane-db}
+  PGDATABASE: ${PGDATABASE:-plane}
+  POSTGRES_USER: ${POSTGRES_USER:-plane}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plane}
+  POSTGRES_DB: ${POSTGRES_DB:-plane}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  PGDATA: ${PGDATA:-/var/lib/postgresql/data}
+
+x-redis-env: &redis-env
+  REDIS_HOST: ${REDIS_HOST:-plane-redis}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_URL: ${REDIS_URL:-redis://plane-redis:6379/}
+
+x-minio-env: &minio-env
+  MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-access-key}
+  MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-secret-key}
+
+x-aws-s3-env: &aws-s3-env
+  AWS_REGION: ${AWS_REGION:-}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-access-key}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-secret-key}
+  AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL:-http://plane-minio:9000}
+  AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
+
+x-proxy-env: &proxy-env
+  APP_DOMAIN: ${APP_DOMAIN:-localhost}
+  FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-5242880}
+  CERT_EMAIL: ${CERT_EMAIL}
+  CERT_ACME_CA: ${CERT_ACME_CA}
+  CERT_ACME_DNS: ${CERT_ACME_DNS}
+  LISTEN_HTTP_PORT: ${LISTEN_HTTP_PORT:-8080}
+  LISTEN_HTTPS_PORT: ${LISTEN_HTTPS_PORT:-8443}
+  BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
+  SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+
+x-mq-env: &mq-env
+  RABBITMQ_HOST: ${RABBITMQ_HOST:-plane-mq}
+  RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+  RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-plane}
+  RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-plane}
+  RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-plane}
+  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-plane}
+
+x-live-env: &live-env
+  API_BASE_URL: ${API_BASE_URL:-http://api:8000}
+  LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY}
+
+x-app-env: &app-env
+  WEB_URL: ${WEB_URL:-http://localhost:8080}
+  DEBUG: ${DEBUG:-0}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+  GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
+  USE_MINIO: ${USE_MINIO:-1}
+  DATABASE_URL: ${DATABASE_URL:-postgresql://plane:plane@plane-db/plane}
+  SECRET_KEY: ${SECRET_KEY}
+  AMQP_URL: ${AMQP_URL:-amqp://plane:plane@plane-mq:5672/plane}
+  API_KEY_RATE_LIMIT: ${API_KEY_RATE_LIMIT:-60/minute}
+  AUTHENTICATION_RATE_LIMIT: ${AUTHENTICATION_RATE_LIMIT:-10/minute}
+  MINIO_ENDPOINT_SSL: ${MINIO_ENDPOINT_SSL:-0}
+  LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY}
+  WEBHOOK_ALLOWED_IPS: ${WEBHOOK_ALLOWED_IPS:-}
+  WEBHOOK_ALLOWED_HOSTS: ${WEBHOOK_ALLOWED_HOSTS:-}
+
+services:
+  web:
+    image: makeplane/plane-frontend:${APP_RELEASE:-v1.4.2}
+    networks: [plane-assistant]
+    deploy:
+      replicas: ${WEB_REPLICAS:-1}
+      restart_policy:
+        condition: any
+    depends_on:
+      - api
+      - worker
+
+  space:
+    image: makeplane/plane-space:${APP_RELEASE:-v1.4.2}
+    networks: [plane-assistant]
+    deploy:
+      replicas: ${SPACE_REPLICAS:-1}
+      restart_policy:
+        condition: any
+    depends_on:
+      - api
+      - worker
+      - web
+
+  admin:
+    image: makeplane/plane-admin:${APP_RELEASE:-v1.4.2}
+    networks: [plane-assistant]
+    deploy:
+      replicas: ${ADMIN_REPLICAS:-1}
+      restart_policy:
+        condition: any
+    depends_on:
+      - api
+      - web
+
+  live:
+    image: makeplane/plane-live:${APP_RELEASE:-v1.4.2}
+    networks: [plane-assistant]
+    environment:
+      <<: [*live-env, *redis-env]
+    deploy:
+      replicas: ${LIVE_REPLICAS:-1}
+      restart_policy:
+        condition: any
+    depends_on:
+      - api
+      - web
+
+  api:
+    image: makeplane/plane-backend:${APP_RELEASE:-v1.4.2}
+    command: ./bin/docker-entrypoint-api.sh
+    networks: [plane-assistant]
+    deploy:
+      replicas: ${API_REPLICAS:-1}
+      restart_policy:
+        condition: any
+    volumes:
+      - logs_api:/code/plane/logs
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+    healthcheck:
+      # api's own entrypoint script blocks on migrations before it ever
+      # listens on 8000 ("Waiting for database migrations to complete...").
+      # A completely fresh database applies 90+ Django migrations, which
+      # took well over the original 40s start_period + 12 retries (~160s
+      # total) on real hardware -- found by actually running a first-time
+      # `docker compose up` end to end, not assumed. Generous enough for a
+      # slow first boot; still catches a genuinely hung container within
+      # ~10 minutes.
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('localhost', 8000), 3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 300s
+    depends_on:
+      plane-db:
+        condition: service_healthy
+      plane-redis:
+        condition: service_healthy
+      plane-mq:
+        condition: service_healthy
+
+  worker:
+    image: makeplane/plane-backend:${APP_RELEASE:-v1.4.2}
+    command: ./bin/docker-entrypoint-worker.sh
+    networks: [plane-assistant]
+    deploy:
+      replicas: ${WORKER_REPLICAS:-1}
+      restart_policy:
+        condition: any
+    volumes:
+      - logs_worker:/code/plane/logs
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+    depends_on:
+      api:
+        condition: service_healthy
+
+  beat-worker:
+    image: makeplane/plane-backend:${APP_RELEASE:-v1.4.2}
+    command: ./bin/docker-entrypoint-beat.sh
+    networks: [plane-assistant]
+    deploy:
+      replicas: ${BEAT_WORKER_REPLICAS:-1}
+      restart_policy:
+        condition: any
+    volumes:
+      - logs_beat-worker:/code/plane/logs
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+    depends_on:
+      api:
+        condition: service_healthy
+
+  migrator:
+    image: makeplane/plane-backend:${APP_RELEASE:-v1.4.2}
+    command: ./bin/docker-entrypoint-migrator.sh
+    networks: [plane-assistant]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - logs_migrator:/code/plane/logs
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+    depends_on:
+      plane-db:
+        condition: service_healthy
+      plane-redis:
+        condition: service_healthy
+
+  # Comment this out if you already have a Postgres database running elsewhere.
+  plane-db:
+    image: postgres:15.7-alpine
+    command: postgres -c 'max_connections=1000'
+    networks: [plane-assistant]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    environment:
+      <<: *db-env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plane} -d ${POSTGRES_DB:-plane}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  plane-redis:
+    image: valkey/valkey:7.2.11-alpine
+    networks: [plane-assistant]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  plane-mq:
+    image: rabbitmq:3.13.6-management-alpine
+    networks: [plane-assistant]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    environment:
+      <<: *mq-env
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  # Comment this out if you are using an external S3-compatible bucket.
+  #
+  # DEVIATION FROM UPSTREAM: the official compose file uses `minio/minio`,
+  # whose Docker Hub repository now rejects anonymous pulls ("pull access
+  # denied ... may require docker login") as of testing this stack. We use
+  # the equivalent, publicly-pullable `quay.io/minio/minio` mirror instead.
+  # See plane/README.md for details.
+  plane-minio:
+    image: quay.io/minio/minio:${MINIO_VERSION:-RELEASE.2025-09-07T16-13-09Z}
+    command: server /export --console-address ":9090"
+    networks: [plane-assistant]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    environment:
+      <<: *minio-env
+    volumes:
+      - uploads:/export
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  # Comment this out if you already have a reverse proxy running in front of Plane.
+  proxy:
+    build:
+      context: .
+      args:
+        APP_RELEASE: ${APP_RELEASE:-v1.4.2}
+    image: plane-assistant/plane-proxy:${APP_RELEASE:-v1.4.2}
+    networks: [plane-assistant]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    environment:
+      <<: *proxy-env
+    ports:
+      - target: 80
+        published: ${LISTEN_HTTP_PORT:-8080}
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: ${LISTEN_HTTPS_PORT:-8443}
+        protocol: tcp
+        mode: host
+    volumes:
+      - proxy_config:/config
+      - proxy_data:/data
+    depends_on:
+      - web
+      - api
+      - space
+      - admin
+      - live
+
+networks:
+  plane-assistant:
+    name: plane-assistant
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+  logs_api:
+  logs_worker:
+  logs_beat-worker:
+  logs_migrator:
+  rabbitmq_data:
+  proxy_config:
+  proxy_data:

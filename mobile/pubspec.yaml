@@ -1,0 +1,53 @@
+name: plane_assistant
+description: "Plane MCP Voice Assistant - Android client for the self-hosted Plane gateway."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Networking
+  http: ^1.2.2
+  # Explicit direct dep (was only transitive via http) so api_client.dart
+  # can set an explicit MediaType on multipart audio uploads -- see
+  # _audioContentType in api_client.dart for why that matters.
+  http_parser: ^4.0.2
+
+  # Storage
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.3
+
+  # Audio
+  record: ^6.0.0
+  just_audio: ^0.9.42
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # Markdown rendering for assistant messages
+  flutter_markdown: ^0.7.4+3
+
+  # Filesystem access for temp recordings
+  path_provider: ^2.1.5
+
+  # Date formatting
+  intl: ^0.19.0
+
+  # Identifiers for client-side message/request correlation
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,41 @@
+# Secrets -- never commit real .env files, only .env.example ones.
+.env
+*/.env
+!*/.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*/.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node (agent CLIs are installed at image build time, not vendored)
+node_modules/
+
+# Flutter / Dart
+mobile/.dart_tool/
+mobile/build/
+mobile/build-output/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/android/local.properties
+mobile/android/.gradle/
+mobile/android/gradlew.bat.log
+mobile/*.iml
+mobile/android/*.iml
+mobile/.idea/
+
+# Gateway runtime data (SQLite DB, TTS cache) -- lives in a named Docker
+# volume in every deployed environment; nothing here needs to be tracked.
+data/*
+!data/.gitkeep
+
+# Editors / OS
+.vscode/
+.DS_Store
+
+# Docker build output
+mobile/build-output/

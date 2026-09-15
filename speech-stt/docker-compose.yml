@@ -1,0 +1,58 @@
+# Whisper ASR Webservice -- speech-to-text component.
+#
+# Runs standalone with `docker compose up -d` from this directory (creates a
+# project-scoped `plane-assistant` network), or gets combined into the
+# repo's root compose via an `include:` directive alongside sibling
+# components (e.g. ../plane-mcp/docker-compose.yml), in which case they all
+# share the *same* actual `plane-assistant` network because the name below
+# is fixed (not project-prefixed).
+#
+# No ports are published to the host by default -- per this repo's rule,
+# only Plane's UI and the gateway API should be host-reachable. The gateway
+# reaches this service at http://speech-stt:9000 over the internal Docker
+# network (see README.md for the verified API paths).
+services:
+  speech-stt:
+    build:
+      context: .
+      args:
+        WHISPER_ASR_VERSION: ${WHISPER_ASR_VERSION:-v1.10.0}
+    image: plane-assistant/speech-stt:${WHISPER_ASR_VERSION:-v1.10.0}
+    restart: unless-stopped
+    environment:
+      # See .env.example for what every variable here actually does and
+      # which upstream docs/source confirmed it (docs/environmental-variables.md,
+      # app/config.py in ahmetoner/whisper-asr-webservice @ v1.10.0).
+      ASR_ENGINE: ${ASR_ENGINE:-faster_whisper}
+      ASR_MODEL: ${ASR_MODEL:-small}
+      ASR_MODEL_PATH: ${ASR_MODEL_PATH:-}
+      ASR_DEVICE: ${ASR_DEVICE:-cpu}
+      ASR_QUANTIZATION: ${ASR_QUANTIZATION:-int8}
+      MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-0}
+      SAMPLE_RATE: ${SAMPLE_RATE:-16000}
+      HF_TOKEN: ${HF_TOKEN:-}
+    networks:
+      - plane-assistant
+    volumes:
+      # Verified by actually running the pinned image: downloaded model
+      # files land under /root/.cache/whisper (HuggingFace-hub-style layout)
+      # and /root/.cache/huggingface. Mounting the whole /root/.cache
+      # directory (as upstream's own docker-compose.yml does) makes models
+      # survive container restarts/rebuilds instead of re-downloading.
+      - whisper-cache:/root/.cache
+    healthcheck:
+      # curl confirmed present inside the image (Debian 12 base). /docs
+      # serves the Swagger UI and returns 200 once Uvicorn is accepting
+      # connections -- confirmed by curling it against a live container.
+      test: ["CMD", "curl", "-f", "http://localhost:9000/docs"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+networks:
+  plane-assistant:
+    name: plane-assistant
+
+volumes:
+  whisper-cache:

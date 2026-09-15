@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The floating bubble shown over whatever app is on screen while the
+     widget is recording/waiting for an answer. Tapping the bubble while
+     listening stops the recording early (same as the max-duration
+     auto-stop); tapping it at any other time dismisses it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/overlay_bubble"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:background="@drawable/overlay_circle_bubble"
+        android:contentDescription="@string/voice_widget_description"
+        android:padding="16dp"
+        android:src="@drawable/ic_mic" />
+
+    <TextView
+        android:id="@+id/overlay_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textColor="#FFFFFFFF"
+        android:textSize="13sp"
+        android:shadowColor="#FF000000"
+        android:shadowRadius="3"
+        android:text="@string/voice_notification_listening" />
+
+</LinearLayout>

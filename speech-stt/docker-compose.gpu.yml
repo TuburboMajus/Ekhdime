@@ -1,0 +1,45 @@
+# Optional override that switches speech-stt to the GPU-accelerated image and
+# reserves an NVIDIA GPU for the container. Requires the NVIDIA Container
+# Toolkit to be installed on the Docker host.
+#
+# The `v1.10.0-gpu` tag was verified to actually exist by querying the Docker
+# Hub API for onerahmet/openai-whisper-asr-webservice tags:
+#
+#   curl -s "https://hub.docker.com/v2/repositories/onerahmet/openai-whisper-asr-webservice/tags?page_size=100" \
+#     | jq -r '.results[].name' | grep gpu
+#
+# which listed v1.10.0-gpu alongside the CPU v1.10.0 tag (and every earlier
+# release's own -gpu suffix, e.g. v1.9.1-gpu, v1.9.0-gpu, ... back to
+# v1.0.4-gpu), confirming this is a real, consistently published tag
+# pattern for this project, not a guess.
+#
+# This override was NOT runtime-tested (no GPU available in this sandbox);
+# the base image pull/build/healthcheck behavior it inherits from
+# docker-compose.yml has been verified, but the `deploy.resources.reservations`
+# GPU reservation itself has not been exercised end-to-end.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+services:
+  speech-stt:
+    build:
+      args:
+        WHISPER_ASR_VERSION: ${WHISPER_ASR_VERSION_GPU:-v1.10.0-gpu}
+    image: plane-assistant/speech-stt:${WHISPER_ASR_VERSION_GPU:-v1.10.0-gpu}
+    environment:
+      # Upstream defaults ASR_DEVICE to "cuda" automatically when a GPU is
+      # available (app/config.py: `os.getenv("ASR_DEVICE", "cuda" if
+      # torch.cuda.is_available() else "cpu")`), but set it explicitly here
+      # so the override is unambiguous even if autodetection ever changes.
+      ASR_DEVICE: ${ASR_DEVICE:-cuda}
+      # float16 is the recommended GPU quantization (upstream default for
+      # GPU is float32; float16 trades a little precision for speed and is
+      # a common choice -- override via .env if you want float32 instead).
+      ASR_QUANTIZATION: ${ASR_QUANTIZATION:-float16}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_widget_description">Talk to Plane Assistant</string>
+    <string name="voice_notification_channel_name">Voice widget</string>
+    <string name="voice_notification_listening">Listening…</string>
+    <string name="voice_notification_thinking">Thinking…</string>
+</resources>
